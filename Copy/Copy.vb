@@ -36,9 +36,9 @@ Module Copy
 		End If
 
 		' Get the Compare type
-		If args.Contains("-C") Then
+		If args.Contains("-C") OrElse args.Contains("-c") Then
 			For i As Integer = 0 To args.Length - 1
-				If args(i) = "-C" Then
+				If args(i).ToUpper = "-C" Then
 					m_CompareType = DirectCast([Enum].Parse(GetType(CompareType), args(i + 1)), CompareType)
 					Exit For
 				End If
@@ -48,9 +48,9 @@ Module Copy
 		End If
 
 		' Get the filter
-		If args.Contains("-F") Then
+		If args.Contains("-F") OrElse args.Contains("-f") Then
 			For i As Integer = 0 To args.Length - 1
-				If args(i) = "-F" Then
+				If args(i).ToUpper = "-F" Then
 					m_strFilter = args(i + 1)
 					Exit For
 				End If
@@ -330,15 +330,15 @@ Module Copy
 			File.Copy(source, dest, True)
 			blnReturn = True
 		Catch fnf As FileNotFoundException
-			Console.WriteLine("Source File not found: " & source)
+			WriteErrorLog("Source File not found: " & source)
 		Catch ptl As PathTooLongException
-			Console.WriteLine("The path is too long")
+			WriteErrorLog("The path is too long" & vbCrLf & "Source:" & source & vbCrLf & "Destination: " & dest)
 		Catch an As ArgumentException
-			Console.WriteLine("Invalid source or destination file")
+			WriteErrorLog("Invalid source or destination file")
 		Catch uax As UnauthorizedAccessException
-			Console.WriteLine("Either the file is in use or you don't have access to modify it")
+			WriteErrorLog("Either the file is in use or you don't have access to modify it")
 		Catch ex As Exception
-			Console.WriteLine("Something really bad went wrong: " & ex.Message)
+			WriteErrorLog("Something really bad went wrong: " & ex.Message)
 		End Try
 
 		Return blnReturn
@@ -369,6 +369,36 @@ Module Copy
 		End Try
 
 		Return blnReturn
+
+	End Function
+
+	Private Function WriteErrorLog(ByVal strMessage As String, Optional ByVal blnPrintMessage As Boolean = True) As Boolean
+
+		Dim blnResult As Boolean = False
+
+		Try
+			Dim astr(-1) As String
+			astr.Add("An error occured at " & Date.Now & ". The error message is as follows:")
+			astr.Add(strMessage)
+			Dim strSave As String = Environment.GetFolderPath(Environment.SpecialFolder.Desktop) & "\CopyFileLogs\"
+			Directory.CreateDirectory(strSave)
+			Dim strfn As String
+
+			strfn = "Copy_ErrorLog_" & DateTime.Now.Year & DateTime.Now.Month.ToString.PadLeft(2, "0") & DateTime.Now.Day.ToString.PadLeft(2, "0") & "_" & DateTime.Now.Hour.ToString.PadLeft(2, "0") & DateTime.Now.Minute.ToString.PadLeft(2, "0") & DateTime.Now.Second.ToString.PadLeft(2, "0") & ".log"
+
+			File.WriteAllLines(strSave & strfn, astr)
+
+			If blnPrintMessage Then
+				Console.WriteLine(strMessage)
+			End If
+
+			blnResult = True
+
+		Catch ex As Exception
+			Console.WriteLine("There was an error writing the Log File: " & ex.Message)
+		End Try
+
+		Return blnResult
 
 	End Function
 
@@ -437,7 +467,7 @@ Module Copy
 		Console.WriteLine("-C Compare Type can be values of: CopyNewer, CopyOlder, CopyAll")
 		Console.WriteLine(Space(intIndent) & "CopyNewer: Copies and overwrites files that are newer in the source than the destination and file that don't exist")
 		Console.WriteLine(Space(intIndent) & "CopyOlder: Copies and overwrites files that are older in the source than the destination and files that don't exist")
-		Console.WriteLine(Space(intIndent) & "CopyHash: NOT IMPLEMENTED")
+		Console.WriteLine(Space(intIndent) & "CopyHash: Overwrites destination files based on whether their hash's match")
 		Console.WriteLine(Space(intIndent) & "CopyAll: Copies and overwrites ALL files in the destination from the source")
 		Console.WriteLine(vbCrLf)
 		Console.WriteLine("-F ""<String for filename and extension(.abc)>""")
