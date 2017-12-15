@@ -10,6 +10,9 @@ Module Copy
 	Private m_lstCopied As List(Of String)
 	Private m_strSourcePath As String
 	Private m_strDestPath As String
+	Private m_blnIsSourceAFile As Boolean = False
+	Private m_blnIsDestFilename As Boolean = False
+	Private m_strFilter As String = String.Empty
 	Private m_ccDefault As ConsoleColor
 	Private m_CompareType As New CompareType
 	Private Enum CompareType
@@ -37,20 +40,59 @@ Module Copy
 			For i As Integer = 0 To args.Length - 1
 				If args(i) = "-C" Then
 					m_CompareType = DirectCast([Enum].Parse(GetType(CompareType), args(i + 1)), CompareType)
+					Exit For
 				End If
 			Next
 		Else
 			m_CompareType = CompareType.CopyAll
 		End If
+
+		' Get the filter
+		If args.Contains("-F") Then
+			For i As Integer = 0 To args.Length - 1
+				If args(i) = "-F" Then
+					m_strFilter = args(i + 1)
+					Exit For
+				End If
+			Next
+		End If
+
 		m_strSourcePath = args(1)
 		m_strDestPath = args(2)
 
-		Dim tmp As String = String.Empty
+		' Check if the path leading up to the source file/directory exists
+		If Directory.Exists(Path.GetDirectoryName(m_strSourcePath)) Then
+			' Check if it's a file or directory
+			If Not File.GetAttributes(m_strSourcePath) = FileAttributes.Directory Then
+				m_blnIsSourceAFile = True
+			End If
+		Else
+			Console.WriteLine("Path doesn't exist")
+			End
+		End If
+
+		' Check if dest path ends in extension, if so then use this as the file name, otherwise use the source file name
+		If Path.GetExtension(m_strDestPath) <> String.Empty Then
+			m_blnIsDestFilename = True
+		End If
+
+		' Check if source is not a file and dest is a filename then we have a problem
+		If Not m_blnIsSourceAFile And m_blnIsDestFilename Then
+			Console.WriteLine("You can't put a directory into a file... yet")
+			End
+		End If
+
+
+
+
+
 		Dim intCount As Integer = 0
 		Dim dtStart As DateTime = DateTime.Now
 		Dim dtFinish As DateTime
-		If IO.Directory.Exists(m_strSourcePath) Then
-			LoadFilesArray(m_afi, New DirectoryInfo(m_strSourcePath))
+		If (m_blnIsSourceAFile AndAlso IO.File.Exists(m_strSourcePath)) _
+			OrElse IO.Directory.Exists(m_strSourcePath) Then
+
+			LoadFilesArray(m_afi, m_strSourcePath, m_strFilter)
 			m_lstCopied = New List(Of String)
 
 			Select Case m_CompareType
@@ -101,7 +143,7 @@ Module Copy
 					fi = m_afi(i) 'm_lstSource(i)
 
 					' replace the source folder path with the dest path to get the full file string
-					tmp = fi.FullName.Replace(m_strSourcePath, String.Empty)
+					tmp = If(m_blnIsDestFilename, String.Empty, fi.FullName.Replace(Path.GetDirectoryName(m_strSourcePath), String.Empty))
 
 					' Check if file exists at dest. If the file doesn't exist at dest, then copy the file
 					'		OR if it does, check the last modified date. 
@@ -151,7 +193,7 @@ Module Copy
 					fi = m_afi(i) 'm_lstSource(i)
 
 					' replace the source folder path with the dest path to get the full file string
-					tmp = fi.FullName.Replace(m_strSourcePath, String.Empty)
+					tmp = If(m_blnIsDestFilename, String.Empty, fi.FullName.Replace(Path.GetDirectoryName(m_strSourcePath), String.Empty))
 					' Check if file exists at dest. If the file doesn't exist at dest, then copy the file
 					'		OR if it does, check the last modified date. 
 					'		if the last modified date on the source is less (older) than the dest
@@ -200,7 +242,7 @@ Module Copy
 					fi = m_afi(i) 'm_lstSource(i)
 
 					' replace the source folder path with the dest path to get the full file string
-					tmp = fi.FullName.Replace(m_strSourcePath, String.Empty)
+					tmp = If(m_blnIsDestFilename, String.Empty, fi.FullName.Replace(Path.GetDirectoryName(m_strSourcePath), String.Empty))
 					' Copy the file
 					If CopyFile(fi.FullName, m_strDestPath & tmp) Then
 						Console.ForegroundColor = ConsoleColor.Green
@@ -242,7 +284,7 @@ Module Copy
 					fi = m_afi(i) 'm_lstSource(i)
 
 					' replace the source folder path with the dest path to get the full file string
-					tmp = fi.FullName.Replace(m_strSourcePath, String.Empty)
+					tmp = If(m_blnIsDestFilename, String.Empty, fi.FullName.Replace(Path.GetDirectoryName(m_strSourcePath), String.Empty))
 					' Check if file exists at dest. If the file doesn't exist at dest, then copy the file
 					'		OR if it does, check the last modified date. 
 					'		if the last modified date on the source is greater (newer) than the dest
@@ -354,24 +396,29 @@ Module Copy
 	End Sub
 
 	''' <summary>
-	''' Recursively loads all files in all subfolders into a given list object
+	''' Recursively loads all files in all subfolders into a given list object unless the source is a single file
 	''' </summary>
 	''' <param name="arr"></param>
-	''' <param name="di"></param>
-	Private Sub LoadFilesArray(ByRef arr() As FileInfo, ByVal di As DirectoryInfo)
+	''' <param name="strSource"></param>
+	Private Sub LoadFilesArray(ByRef arr() As FileInfo, ByVal strSource As String, ByVal strFilter As String)
 
 		Try
 			'Console.WriteLine("Loading Directory: " & di.FullName)
 
-			arr.AddRange(di.GetFiles)
-			'lst.AddRange(di.GetFiles.ToList)
-			'For i As Integer = 0 To di.GetFiles.Count - 1
-			'	arr.Add(di.GetFiles.GetValue(i))
-			'Next
+			If m_blnIsSourceAFile Then
+				arr.Add(New FileInfo(strSource))
+			Else
+				Dim di As New DirectoryInfo(strSource)
+				arr.AddRange(di.GetFiles(strFilter))
+				'lst.AddRange(di.GetFiles.ToList)
+				'For i As Integer = 0 To di.GetFiles.Count - 1
+				'	arr.Add(di.GetFiles.GetValue(i))
+				'Next
 
-			For Each sd As DirectoryInfo In di.GetDirectories
-				LoadFilesArray(arr, sd)
-			Next
+				For Each sd As DirectoryInfo In di.GetDirectories
+					LoadFilesArray(arr, strSource, strFilter)
+				Next
+			End If
 			GC.Collect()
 		Catch ex As Exception
 			Throw ex
@@ -382,7 +429,7 @@ Module Copy
 
 	Private Sub DisplayHelp()
 		Dim intIndent As Integer = 3
-		Console.WriteLine("Copy.exe [Copy From] [Copy To] -C [Compare Type<CopyNewer, CopyOlder, CopyHash, CopyAll(Default)>] --confirm -h")
+		Console.WriteLine("Copy.exe [Path/File From] [Path/File To] -C [Compare Type<CopyNewer, CopyOlder, CopyHash, CopyAll(Default)>] -F ""<String for filename and extension(.abc)>"" -h")
 
 		Console.WriteLine(vbCrLf)
 		Console.WriteLine(Space(intIndent) & "About: This was written to make copying of newer files over odler ones easier then it spiraled out of control")
@@ -392,7 +439,11 @@ Module Copy
 		Console.WriteLine(Space(intIndent) & "CopyOlder: Copies and overwrites files that are older in the source than the destination and files that don't exist")
 		Console.WriteLine(Space(intIndent) & "CopyHash: NOT IMPLEMENTED")
 		Console.WriteLine(Space(intIndent) & "CopyAll: Copies and overwrites ALL files in the destination from the source")
-		Console.WriteLine("--confirm check to make sure the file actually exists after copying")
+		Console.WriteLine(vbCrLf)
+		Console.WriteLine("-F ""<String for filename and extension(.abc)>""")
+		Console.WriteLine(Space(intIndent) & "Extensions must start with a period e.g. for Word Document ""*.doc"" or ""*.docx""")
+		Console.WriteLine(Space(intIndent) & "You can only filter when copying directories")
+		'Console.WriteLine("--confirm check to make sure the file actually exists after copying")
 		Console.WriteLine("-h Help (this menu)")
 	End Sub
 
