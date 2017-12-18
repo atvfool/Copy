@@ -31,24 +31,40 @@ Public Class FileHash
 	End Sub
 
 
-	Public Sub New(ByRef fFile As IO.FileInfo)
+    Public Sub New(ByRef fFile As IO.FileInfo)
 
-		Try
-			If fFile IsNot Nothing Then
-				m_file = fFile
-			Else
-				Throw New NullReferenceException("File cannot be null: FileHash.New(fFile, abytFileHash)")
-			End If
+        Try
+            Init(fFile)
+        Catch ex As Exception
+            Throw ex
+        End Try
 
-			m_fileHash = MD5CryptoServiceProvider.Create.ComputeHash(IO.File.ReadAllBytes(m_file.FullName))
+    End Sub
 
-		Catch ex As Exception
-			Throw ex
-		End Try
+    Public Sub New(ByRef strPath As String)
+        Try
+            Init(New FileInfo(strPath))
+        Catch ex As Exception
+            Throw ex
+        End Try
+    End Sub
 
-	End Sub
 
-	Public Overrides Function ToString() As String
+    Private Sub Init(ByRef fFIle As IO.FileInfo)
+        Try
+            If fFIle IsNot Nothing Then
+                m_file = fFIle
+            Else
+                Throw New NullReferenceException("File cannot be null: FileHash.New(fFile, abytFileHash)")
+            End If
+
+            m_fileHash = MD5CryptoServiceProvider.Create.ComputeHash(IO.File.ReadAllBytes(m_file.FullName))
+
+        Catch ex As Exception
+            Throw ex
+        End Try
+    End Sub
+    Public Overrides Function ToString() As String
 		Dim strReturn As String = String.Empty
 		Try
 
