@@ -449,13 +449,19 @@ Module Copy
 				arr.Add(New FileInfo(strSource))
 			Else
 				Dim di As New DirectoryInfo(strSource)
-				arr.AddRange(di.GetFiles(strFilter))
-				'lst.AddRange(di.GetFiles.ToList)
-				'For i As Integer = 0 To di.GetFiles.Count - 1
-				'	arr.Add(di.GetFiles.GetValue(i))
-				'Next
+                If strFilter = String.Empty Then
+                    arr.AddRange(di.GetFiles())
+                Else
+                    arr.AddRange(di.GetFiles(strFilter))
+                End If
 
-				For Each sd As DirectoryInfo In di.GetDirectories
+
+                'lst.AddRange(di.GetFiles.ToList)
+                'For i As Integer = 0 To di.GetFiles.Count - 1
+                '	arr.Add(di.GetFiles.GetValue(i))
+                'Next
+
+                For Each sd As DirectoryInfo In di.GetDirectories
 					LoadFilesArray(arr, strSource, strFilter)
 				Next
 			End If
