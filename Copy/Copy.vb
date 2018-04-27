@@ -145,7 +145,7 @@ Module Copy
 					fi = m_afi(i) 'm_lstSource(i)
 
 					' replace the source folder path with the dest path to get the full file string
-					tmp = If(m_blnIsDestFilename, String.Empty, fi.FullName.Replace(Path.GetDirectoryName(m_strSourcePath), String.Empty))
+tmp = If(m_blnIsDestFilename, String.Empty, "\" & fi.FullName.Replace(Path.GetDirectoryName(m_strSourcePath), String.Empty))
                     dtSourceDate = fi.LastWriteTime
                     dtDestDate = If(File.Exists(m_strDestPath & tmp), New FileInfo(m_strDestPath).LastWriteTime, Date.Now)
                     ' Check if file exists at dest. If the file doesn't exist at dest, then copy the file
@@ -336,8 +336,10 @@ Module Copy
 		Dim blnReturn As Boolean = False
 
 		Try
-			Directory.CreateDirectory(New FileInfo(dest).DirectoryName)
-			File.Copy(source, dest, True)
+			Dim fi as New FileInfo(dest)
+			If fi.Exists Then fi.IsReadOnly = False
+			Directory.CreateDirectory(fi.DirectoryName)
+			File.Copy(source, fi.FullName, True)
 			blnReturn = True
 		Catch fnf As FileNotFoundException
 			WriteErrorLog("Source File not found: " & source)
