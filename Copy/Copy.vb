@@ -1,4 +1,4 @@
-﻿Imports System.IO
+Imports System.IO
 Imports System.Threading
 
 Module Copy
@@ -18,92 +18,96 @@ Module Copy
 	Private Enum CompareType
 		CopyNewer = 0
 		CopyOlder
-        CopyHash
-        CopyAll
-    End Enum
+		CopyDiffHash
+		CopyAll
+	End Enum
 
-    Sub Main()
-        m_ccDefault = Console.ForegroundColor
-        Dim args As String() = Environment.GetCommandLineArgs
-        ' Display help Menu and Exit?
-        If args.Length = 1 OrElse args.Contains("-h") Then
-            DisplayHelp()
+	''' <summary>
+	''' The Starting point of the application.
+	''' </summary>
+	Sub Main()
+		m_ccDefault = Console.ForegroundColor
+		Dim args As String() = Environment.GetCommandLineArgs
+		' Display help Menu and Exit?
+		If args.Length = 1 OrElse args.Contains("-h") Then
+			DisplayHelp()
 #If DEBUG Then
-            Console.Write("Press ENTER to exit...")
-            Console.ReadKey()
+			Console.Write("Press ENTER to exit...")
+			Console.ReadKey()
 #End If
-            End
-        End If
+			End
+		End If
 
-        ' Get the Compare type
-        If args.Contains("-C") OrElse args.Contains("-c") Then
-            For i As Integer = 0 To args.Length - 1
-                If args(i).ToUpper = "-C" Then
-                    m_CompareType = DirectCast([Enum].Parse(GetType(CompareType), args(i + 1)), CompareType)
-                    Exit For
-                End If
-            Next
-        Else
-            m_CompareType = CompareType.CopyAll
-        End If
+		' Get the Compare type
+		If args.Contains("-C") OrElse args.Contains("-c") Then
+			For i As Integer = 0 To args.Length - 1
+				If args(i).ToUpper = "-C" Then
+					m_CompareType = DirectCast([Enum].Parse(GetType(CompareType), args(i + 1)), CompareType)
+					Exit For
+				End If
+			Next
+		Else
+			m_CompareType = CompareType.CopyAll
+		End If
 
-        ' Get the filter
-        If args.Contains("-F") OrElse args.Contains("-f") Then
-            For i As Integer = 0 To args.Length - 1
-                If args(i).ToUpper = "-F" Then
-                    m_strFilter = args(i + 1)
-                    Exit For
-                End If
-            Next
-        End If
+		' Get the filter
+		If args.Contains("-F") OrElse args.Contains("-f") Then
+			For i As Integer = 0 To args.Length - 1
+				If args(i).ToUpper = "-F" Then
+					m_strFilter = args(i + 1)
+					Exit For
+				End If
+			Next
+		End If
 
-        m_strSourcePath = args(1)
-        m_strDestPath = args(2)
+		m_strSourcePath = args(1)
+		m_strDestPath = args(2)
 
-        ' Check if the path leading up to the source file/directory exists
-        If Directory.Exists(Path.GetDirectoryName(m_strSourcePath)) Then
-            ' Check if it's a file or directory
-            If Not File.GetAttributes(m_strSourcePath) = FileAttributes.Directory Then
-                m_blnIsSourceAFile = True
-            End If
-        Else
-            Console.WriteLine("Path doesn't exist")
-            End
-        End If
+		' Check if the path leading up to the source file/directory exists
+		If Directory.Exists(Path.GetDirectoryName(m_strSourcePath)) Then
+			' Check if it's a file or directory
+			Dim fa As FileAttributes = File.GetAttributes(m_strSourcePath)
+			If Not File.GetAttributes(m_strSourcePath).HasFlag(FileAttributes.Directory) Then
+				m_blnIsSourceAFile = True
+			End If
+		Else
+			Console.WriteLine("Path doesn't exist")
+			End
+		End If
 
-        ' Check if dest path ends in extension, if so then use this as the file name, otherwise use the source file name
-        If Path.GetExtension(m_strDestPath) <> String.Empty Then
-            m_blnIsDestFilename = True
-        End If
+		' Check if dest path ends in extension, if so then use this as the file name, otherwise use the source file name
+		If Path.GetExtension(m_strDestPath) <> String.Empty Then
+			m_blnIsDestFilename = True
+		End If
 
-        ' Check if source is not a file and dest is a filename then we have a problem
-        If Not m_blnIsSourceAFile And m_blnIsDestFilename Then
-            Console.WriteLine("You can't put a directory into a file... yet")
-            End
-        End If
-
-
-
+		' Check if source is not a file and dest is a filename then we have a problem
+		If Not m_blnIsSourceAFile And m_blnIsDestFilename Then
+			Console.WriteLine("You can't put a directory into a file... yet")
+			End
+		End If
 
 
-        Dim intCount As Integer = 0
-        Dim dtStart As DateTime = DateTime.Now
-        Dim dtFinish As DateTime
-        If (m_blnIsSourceAFile AndAlso IO.File.Exists(m_strSourcePath)) _
-            OrElse IO.Directory.Exists(m_strSourcePath) Then
 
-            LoadFilesArray(m_afi, m_strSourcePath, m_strFilter)
-            m_lstCopied = New List(Of String)
 
-            Select Case m_CompareType
-                Case CompareType.CopyNewer
-                    intCount = CopyNewer()
-                Case CompareType.CopyAll
-                    intCount = CopyAll()
-                Case CompareType.CopyOlder
-                    intCount = CopyOlder()
-                Case CompareType.CopyHash
-                    intCount = CopyHash()
+
+		Dim intCount As Integer = 0
+		Dim dtStart As DateTime = DateTime.Now
+		Dim dtFinish As DateTime
+		If (m_blnIsSourceAFile AndAlso IO.File.Exists(m_strSourcePath)) _
+			OrElse IO.Directory.Exists(m_strSourcePath) Then
+
+			LoadFilesArray(m_afi, m_strSourcePath, m_strFilter)
+			m_lstCopied = New List(Of String)
+
+			Select Case m_CompareType
+				Case CompareType.CopyNewer
+					intCount = CopyNewer()
+				Case CompareType.CopyAll
+					intCount = CopyAll()
+				Case CompareType.CopyOlder
+					intCount = CopyOlder()
+				Case CompareType.CopyDiffHash
+					intCount = CopyHash()
 			End Select
 
 		End If
@@ -128,84 +132,29 @@ Module Copy
 	''' <summary>
 	''' Checks if a file doesn't exists in the destination and copies or if it does exist, is the source newer, then copy.
 	''' </summary>
-	''' <returns></returns>
+	''' <returns>Number of files found</returns>
 	Public Function CopyNewer() As Integer
 		Dim intReturn As Integer = 0
 		Try
 
 			Dim fi As FileInfo
-            Dim tmp As String = String.Empty
-            Dim dtSourceDate As Date
-            Dim dtDestDate As Date
-            ' Loop through lstSource
-            'For Each fi As FileInfo In m_lstSource
-            For i As Integer = 0 To m_afi.Count - 1
+			Dim tmp As String = String.Empty
+			' Loop through lstSource
+			'For Each fi As FileInfo In m_lstSource
+			For i As Integer = 0 To m_afi.Count - 1
 				If m_afi(i) IsNot Nothing Then
 
 					fi = m_afi(i) 'm_lstSource(i)
 
 					' replace the source folder path with the dest path to get the full file string
-tmp = If(m_blnIsDestFilename, String.Empty, "\" & fi.FullName.Replace(Path.GetDirectoryName(m_strSourcePath), String.Empty))
-                    dtSourceDate = fi.LastWriteTime
-                    dtDestDate = If(File.Exists(m_strDestPath & tmp), New FileInfo(m_strDestPath).LastWriteTime, Date.Now)
-                    ' Check if file exists at dest. If the file doesn't exist at dest, then copy the file
-                    '		OR if it does, check the last modified date. 
-                    '		if the last modified date on the source is greater (newer) than the dest
-                    '		then copy the file. 
-                    If dtSourceDate.CompareTo(dtDestDate) > 0 Then
-                        If CopyFile(fi.FullName, m_strDestPath & tmp) Then
-                            Console.ForegroundColor = ConsoleColor.Green
-                            Console.WriteLine("Copied " & fi.FullName)
-                            Console.ForegroundColor = m_ccDefault
-                            tmp &= ": Success"
-                        Else
-                            Console.ForegroundColor = ConsoleColor.Red
-                            Console.WriteLine("Failed: " & fi.FullName)
-                            Console.ForegroundColor = m_ccDefault
-                            tmp &= ": Failed"
-                        End If
-                        m_lstCopied.Add(tmp & vbTab & dtSourceDate & vbTab & dtDestDate)
-                        intReturn += 1
+					tmp = If(m_blnIsDestFilename, String.Empty, fi.FullName.Replace(Path.GetDirectoryName(m_strSourcePath), String.Empty))
 
-                    End If
-
-                End If
-			Next
-		Catch ex As Exception
-			Console.WriteLine("Something when horrendously wrong, perhaps one Of your files is locked?" & vbCrLf & ex.Message)
-		End Try
-		Return intReturn
-	End Function
-
-	''' <summary>
-	''' Checks if a file doesn't exists in the destination and copies or if it does exist, is the source older, then copy.
-	''' </summary>
-	''' <returns></returns>
-	Public Function CopyOlder() As Integer
-		Dim intReturn As Integer = 0
-		Try
-
-			Dim fi As FileInfo
-            Dim tmp As String = String.Empty
-            m_lstCopied.Add("Copy Method: Older")
-            Dim dtSourceDate As Date
-            Dim dtDestDate As Date
-            ' Loop through lstSource
-            'For Each fi As FileInfo In m_lstSource
-            For i As Integer = 0 To m_afi.Count - 1
-				If m_afi(i) IsNot Nothing Then
-
-					fi = m_afi(i) 'm_lstSource(i)
-
-                    ' replace the source folder path with the dest path to get the full file string
-                    tmp = If(m_blnIsDestFilename, String.Empty, fi.FullName.Replace(Path.GetDirectoryName(m_strSourcePath), String.Empty))
-                    dtSourceDate = fi.LastWriteTime
-                    dtDestDate = If(File.Exists(m_strDestPath & tmp), New FileInfo(m_strDestPath).LastWriteTime, Date.Now)
-                    ' Check if file exists at dest. If the file doesn't exist at dest, then copy the file
-                    '		OR if it does, check the last modified date. 
-                    '		if the last modified date on the source is less (older) than the dest
-                    '		then copy the file. 
-                    If dtSourceDate.CompareTo(dtDestDate) < 0 Then
+					' Check if file exists at dest. If the file doesn't exist at dest, then copy the file
+					'		OR if it does, check the last modified date. 
+					'		if the last modified date on the source is greater (newer) than the dest
+					'		then copy the file. 
+					If Not File.Exists(m_strDestPath & tmp) OrElse
+						fi.LastWriteTime.CompareTo(New FileInfo(m_strDestPath & tmp).LastWriteTime) > 0 Then
 						If CopyFile(fi.FullName, m_strDestPath & tmp) Then
 							Console.ForegroundColor = ConsoleColor.Green
 							Console.WriteLine("Copied " & fi.FullName)
@@ -217,8 +166,57 @@ tmp = If(m_blnIsDestFilename, String.Empty, "\" & fi.FullName.Replace(Path.GetDi
 							Console.ForegroundColor = m_ccDefault
 							tmp &= ": Failed"
 						End If
-                        m_lstCopied.Add(tmp & vbTab & dtSourceDate & vbTab & dtDestDate)
-                        intReturn += 1
+						m_lstCopied.Add(tmp)
+						intReturn += 1
+
+					End If
+
+				End If
+			Next
+		Catch ex As Exception
+			Console.WriteLine("Something when horrendously wrong, perhaps one Of your files is locked?" & vbCrLf & ex.Message)
+		End Try
+		Return intReturn
+	End Function
+
+	''' <summary>
+	''' Checks if a file doesn't exists in the destination and copies or if it does exist, is the source older, then copy.
+	''' </summary>
+	''' <returns>Number of files found</returns>
+	Public Function CopyOlder() As Integer
+		Dim intReturn As Integer = 0
+		Try
+
+			Dim fi As FileInfo
+			Dim tmp As String = String.Empty
+			' Loop through lstSource
+			'For Each fi As FileInfo In m_lstSource
+			For i As Integer = 0 To m_afi.Count - 1
+				If m_afi(i) IsNot Nothing Then
+
+					fi = m_afi(i) 'm_lstSource(i)
+
+					' replace the source folder path with the dest path to get the full file string
+					tmp = If(m_blnIsDestFilename, String.Empty, fi.FullName.Replace(Path.GetDirectoryName(m_strSourcePath), String.Empty))
+					' Check if file exists at dest. If the file doesn't exist at dest, then copy the file
+					'		OR if it does, check the last modified date. 
+					'		if the last modified date on the source is less (older) than the dest
+					'		then copy the file. 
+					If Not File.Exists(m_strDestPath & tmp) OrElse
+						fi.LastWriteTime.CompareTo(New FileInfo(m_strDestPath & tmp).LastWriteTime) < 0 Then
+						If CopyFile(fi.FullName, m_strDestPath & tmp) Then
+							Console.ForegroundColor = ConsoleColor.Green
+							Console.WriteLine("Copied " & fi.FullName)
+							Console.ForegroundColor = m_ccDefault
+							tmp &= ": Success"
+						Else
+							Console.ForegroundColor = ConsoleColor.Red
+							Console.WriteLine("Failed: " & fi.FullName)
+							Console.ForegroundColor = m_ccDefault
+							tmp &= ": Failed"
+						End If
+						m_lstCopied.Add(tmp)
+						intReturn += 1
 
 					End If
 
@@ -233,7 +231,7 @@ tmp = If(m_blnIsDestFilename, String.Empty, "\" & fi.FullName.Replace(Path.GetDi
 	''' <summary>
 	''' Copies all files from the source to the destination
 	''' </summary>
-	''' <returns></returns>
+	''' <returns>Number of files found</returns>
 	Public Function CopyAll() As Integer
 		Dim intReturn As Integer = 0
 		Try
@@ -275,49 +273,45 @@ tmp = If(m_blnIsDestFilename, String.Empty, "\" & fi.FullName.Replace(Path.GetDi
 	''' <summary>
 	''' Compares the file hashs, if they differ it copies, if the destination file doesn't exist, it copies
 	''' </summary>
-	''' <returns></returns>
+	''' <returns>Number of files found</returns>
 	Public Function CopyHash() As Integer
 		Dim intReturn As Integer = 0
 		Try
 
 			Dim fi As FileInfo
-            Dim tmp As String = String.Empty
-            Dim tmpSourceHash As String
-            Dim tmpDestHash As String
-            ' Loop through lstSource
-            'For Each fi As FileInfo In m_lstSource
-            For i As Integer = 0 To m_afi.Count - 1
+			Dim tmp As String = String.Empty
+			' Loop through lstSource
+			'For Each fi As FileInfo In m_lstSource
+			For i As Integer = 0 To m_afi.Count - 1
 				If m_afi(i) IsNot Nothing Then
 
 					fi = m_afi(i) 'm_lstSource(i)
 
-                    ' replace the source folder path with the dest path to get the full file string
-                    tmp = If(m_blnIsDestFilename, String.Empty, fi.FullName.Replace(Path.GetDirectoryName(m_strSourcePath), String.Empty))
-                    ' Get the hashs of the files
-                    tmpSourceHash = New FileHash(fi).ToString
-                    tmpDestHash = If(File.Exists(m_strDestPath & tmp), New FileHash(New FileInfo(m_strDestPath & tmp)).ToString, "N/A")
-                    ' Check if file exists at dest. If the file doesn't exist at dest, then copy the file
-                    '		OR if it does, check the last modified date. 
-                    '		if the last modified date on the source is greater (newer) than the dest
-                    '		then copy the file. 
-                    If Not tmpSourceHash.Equals(tmpDestHash) Then
-                        If CopyFile(fi.FullName, m_strDestPath & tmp) Then
-                            Console.ForegroundColor = ConsoleColor.Green
-                            Console.WriteLine("Copied " & fi.FullName)
-                            Console.ForegroundColor = m_ccDefault
-                            tmp &= ": Success"
-                        Else
-                            Console.ForegroundColor = ConsoleColor.Red
-                            Console.WriteLine("Failed: " & fi.FullName)
-                            Console.ForegroundColor = m_ccDefault
-                            tmp &= ": Failed"
-                        End If
-                        m_lstCopied.Add(tmp & vbTab & tmpSourceHash.ToString & vbTab & tmpDestHash)
-                        intReturn += 1
+					' replace the source folder path with the dest path to get the full file string
+					tmp = If(m_blnIsDestFilename, String.Empty, fi.FullName.Replace(Path.GetDirectoryName(m_strSourcePath), String.Empty))
+					' Check if file exists at dest. If the file doesn't exist at dest, then copy the file
+					'		OR if it does, check the last modified date. 
+					'		if the last modified date on the source is greater (newer) than the dest
+					'		then copy the file. 
+					If Not File.Exists(m_strDestPath & tmp) OrElse
+						Not New FileHash(fi).ToString.Equals(New FileHash(New FileInfo(m_strDestPath & tmp)).ToString) Then
+						If CopyFile(fi.FullName, m_strDestPath & tmp) Then
+							Console.ForegroundColor = ConsoleColor.Green
+							Console.WriteLine("Copied " & fi.FullName)
+							Console.ForegroundColor = m_ccDefault
+							tmp &= ": Success"
+						Else
+							Console.ForegroundColor = ConsoleColor.Red
+							Console.WriteLine("Failed: " & fi.FullName)
+							Console.ForegroundColor = m_ccDefault
+							tmp &= ": Failed"
+						End If
+						m_lstCopied.Add(tmp)
+						intReturn += 1
 
-                    End If
+					End If
 
-                End If
+				End If
 			Next
 		Catch ex As Exception
 			Console.WriteLine("Something when horrendously wrong, perhaps one Of your files is locked?" & vbCrLf & ex.Message)
@@ -330,15 +324,16 @@ tmp = If(m_blnIsDestFilename, String.Empty, "\" & fi.FullName.Replace(Path.GetDi
 	''' </summary>
 	''' <param name="source"></param>
 	''' <param name="dest"></param>
-	''' <returns></returns>
+	''' <returns>Number of files found</returns>
 	Private Function CopyFile(ByVal source As String, ByVal dest As String) As Boolean
 
 		Dim blnReturn As Boolean = False
 
 		Try
-			Dim fi as New FileInfo(dest)
+			Dim fi As New FileInfo(dest)
 			If fi.Exists Then fi.IsReadOnly = False
 			Directory.CreateDirectory(fi.DirectoryName)
+
 			File.Copy(source, fi.FullName, True)
 			blnReturn = True
 		Catch fnf As FileNotFoundException
@@ -357,6 +352,12 @@ tmp = If(m_blnIsDestFilename, String.Empty, "\" & fi.FullName.Replace(Path.GetDi
 
 	End Function
 
+	''' <summary>
+	''' Writes a log file with file count, time elapsed and current date
+	''' </summary>
+	''' <param name="intFileCount">Number of files affected</param>
+	''' <param name="ts">Elapsed time</param>
+	''' <returns>True if successful</returns>
 	Private Function WriteLogFile(ByVal intFileCount As Integer, ByVal ts As TimeSpan) As Boolean
 
 		Dim blnReturn As Boolean = False
@@ -376,6 +377,8 @@ tmp = If(m_blnIsDestFilename, String.Empty, "\" & fi.FullName.Replace(Path.GetDi
 
 			File.WriteAllLines(strSave & strfn, astr)
 
+			blnReturn = True
+
 		Catch ex As Exception
 			Console.WriteLine("Something went wrong. " & ex.Message)
 		End Try
@@ -384,6 +387,12 @@ tmp = If(m_blnIsDestFilename, String.Empty, "\" & fi.FullName.Replace(Path.GetDi
 
 	End Function
 
+	''' <summary>
+	''' Writes an error message to a log file
+	''' </summary>
+	''' <param name="strMessage">The error message</param>
+	''' <param name="blnPrintMessage">True to print in the console window</param>
+	''' <returns>True if file write is a success</returns>
 	Private Function WriteErrorLog(ByVal strMessage As String, Optional ByVal blnPrintMessage As Boolean = True) As Boolean
 
 		Dim blnResult As Boolean = False
@@ -418,8 +427,8 @@ tmp = If(m_blnIsDestFilename, String.Empty, "\" & fi.FullName.Replace(Path.GetDi
 	''' <summary>
 	''' Recursively loads all files in all subfolders into a given list object
 	''' </summary>
-	''' <param name="lst"></param>
-	''' <param name="di"></param>
+	''' <param name="lst">List of file info</param>
+	''' <param name="di">Current Direcotry info</param>
 	Private Sub LoadFiles(ByRef lst As List(Of FileInfo), ByVal di As DirectoryInfo)
 
 		Try
@@ -440,8 +449,8 @@ tmp = If(m_blnIsDestFilename, String.Empty, "\" & fi.FullName.Replace(Path.GetDi
 	''' <summary>
 	''' Recursively loads all files in all subfolders into a given list object unless the source is a single file
 	''' </summary>
-	''' <param name="arr"></param>
-	''' <param name="strSource"></param>
+	''' <param name="arr">The array to load the files into</param>
+	''' <param name="strSource">Where to load the files from</param>
 	Private Sub LoadFilesArray(ByRef arr() As FileInfo, ByVal strSource As String, ByVal strFilter As String)
 
 		Try
@@ -451,20 +460,19 @@ tmp = If(m_blnIsDestFilename, String.Empty, "\" & fi.FullName.Replace(Path.GetDi
 				arr.Add(New FileInfo(strSource))
 			Else
 				Dim di As New DirectoryInfo(strSource)
-                If strFilter = String.Empty Then
-                    arr.AddRange(di.GetFiles())
-                Else
-                    arr.AddRange(di.GetFiles(strFilter))
-                End If
+				If strFilter.Trim.Equals(String.Empty) Then
+					arr.AddRange(di.GetFiles())
+				Else
+					arr.AddRange(di.GetFiles(strFilter))
+				End If
 
+				'lst.AddRange(di.GetFiles.ToList)
+				'For i As Integer = 0 To di.GetFiles.Count - 1
+				'	arr.Add(di.GetFiles.GetValue(i))
+				'Next
 
-                'lst.AddRange(di.GetFiles.ToList)
-                'For i As Integer = 0 To di.GetFiles.Count - 1
-                '	arr.Add(di.GetFiles.GetValue(i))
-                'Next
-
-                For Each sd As DirectoryInfo In di.GetDirectories
-					LoadFilesArray(arr, strSource, strFilter)
+				For Each sd As DirectoryInfo In di.GetDirectories
+					LoadFilesArray(arr, sd.FullName, strFilter)
 				Next
 			End If
 			GC.Collect()
@@ -474,7 +482,9 @@ tmp = If(m_blnIsDestFilename, String.Empty, "\" & fi.FullName.Replace(Path.GetDi
 
 	End Sub
 
-
+	''' <summary>
+	''' Displays a help message in the console
+	''' </summary>
 	Private Sub DisplayHelp()
 		Dim intIndent As Integer = 3
 		Console.WriteLine("Copy.exe [Path/File From] [Path/File To] -C [Compare Type<CopyNewer, CopyOlder, CopyHash, CopyAll(Default)>] -F ""<String for filename and extension(.abc)>"" -h")
